@@ -10,7 +10,8 @@ InterviewFAQ-Linux
         -   [文件系统](#文件系统)
         -   [开机启动过程](#开机启动过程)
         -   [Swap](#swap)
-        -   [iptables](#iptables)
+        -   [Iptables](#iptables)
+        -   [Shell操作](#shell操作)
     -   [操作系统](#操作系统)
         -   [IO模型](#io模型)
         -   [进程，线程，协程](#进程线程协程)
@@ -19,6 +20,7 @@ InterviewFAQ-Linux
         -   [内核态和用户态](#内核态和用户态)
         -   [进程间通信](#进程间通信)
         -   [死锁](#死锁)
+        -   [变量存储区域](#变量存储区域)
 
 Linux
 -----
@@ -264,7 +266,7 @@ Linux
     -   服务器休眠时，运行中的程序状态会被记录到swap
     -   某些程序运行时会利用swap的特性
 
-### iptables
+### Iptables
 
 -   filter
     -   INPUT
@@ -290,6 +292,99 @@ Linux
     -   iptables -A INPUT -p tcp -dport 445 -j ACCEPT
     -   iptables -A INPUT -p tcp -m multiport --dports 22,80 -j ACCEPT
     -   只允许某个IP上网
+
+### Shell操作
+
+- find /data -type f -name "*.txt" | xargs sed -i 's/oldgirl/oldboy/g'
+- mkdir -p /data/oldboy && echo
+- 算术运算
+  - $[]
+  - $(())
+  - $(expr a + b) 或者 `expr a \* b` :注意运算符两边要空格，且乘法符号要转义
+- 查看http的并发请求数与其TCP连接状态
+  - netstat -tan | awk '/^tcp\>/{split($5,ip,":");count[ip[1]]++}END{for(i in count) print i,count[i]}'
+- awk '{print $1}' /var/log/nginx/access.log | sort | uniq -c | sort -nr -k1 | head -n 10
+- cat /dev/urandom | head -1 | md5sum | haed -c 5
+- watch -n 1 "/sbin/ifconfig eth0 | grep bytes"
+- find /opt -size +15k -exec mv {} /tmp/ \;
+- sed和awk
+  - 如果文件是格式化的，即由分隔符分为多个域的，优先使用awk
+  - awk适合按列（域）操作，sed适合按行操作
+  - awk适合对文件的抽取整理，sed适合对文件的编辑。
+- 写一个脚本，该脚本能对标准的apache日志进行分析并统计出总的访问次数和每个访问ip的访问次数，按访问次数列出前5名？ 
+- 显示/test下所有目录
+  - ls -d */
+  - find . -type d -maxdepth 1
+  - ls -F | grep '/$'
+  - ls -l | grep '^d' | awk '{print $9}'
+- 将文件/etc/a 下中除了 b文件外的所有文件压缩打包放到/home/a下，名字为a.tar.gz
+  - tar -exclude /etc/a/b -Pcvfz /home/a/a.tar.gz /etc/a
+- 如何查看某进程打开的所有文件
+  - lsof -p \`ps -ef | grep crond | awk '{print $2}'`
+- 获取网卡eth0的80端口的数据包信息，找出访问最高的
+  - tcpdump -i eth0 -tnn dst port 80 -c 1000 | awk -F "." '{print $1"."$2"."$3"."$4"."}'|sort|uniq -c|sort -nr|head -5
+- 查看/var/log目录下的文件数
+  - ls /var/log -1R | grep "-" | wc -l
+- 查看Linux系统每个IP的连接数
+  - netstat -n | awk '/^tcp/{print \$5}' | awk -F":" ’{print $1}'  | sort | uniq -c | sort -rn
+- 用iptables控制来自192.168.1.2主机的80端口请求
+  - iptables -A INPUT -p tcp -s 192.168.1.2 -dport 80 -j ACCEPT
+- Linux如何挂载Windows下的共享目录
+  - mount .cifs //IP地址/server /mnt/server -o user=username,password=123
+- 生成32位随机密码
+  - cat /dev/urandom | head -1 | md5sum | head -c 32 
+- 密码加密
+  - echo abc | openssl md5
+  - echo abc | openssl base64
+  - echo abc | openssl sha
+- ps aux 中的VSZ代表什么意思，RSS代表什么意思？
+  - VSZ：虚拟内存集，进程占用的虚拟内存空间
+  - RSS：物理内存集，进程占用的实际物理内存空间
+- 修改内核参数
+  - vi /etc/sysctl.conf
+  - sysctl -p
+- 取0-39随机数
+  - expr $[RANDOM%39] + 1 \# 注意操作符两边的空格
+- 限制apache每秒新建连接数为1，峰值为3
+  - iptables -A INPUT -d 172.16.100.1 -p tcp -dport 80 -m limit -limit 1/second -j ACCEPT
+- 怎么把脚本添加到系统服务里，即用service来调用？
+  - 脚本里添加
+    - \#!/bin/bsh
+    - \# chkconfig: 345 85 15
+    - \# description: httpd
+  - chkconfig httpd -add
+  - service start httpd
+- 按修改时间排序显示目录中的文件
+  - ls -lrt /etc
+- 打印文件的权限值
+  - stat -c %a /etc/inittab
+- 查看 ARP 缓存记录的命令是?
+  - “arp –a”
+- 软件工具的原则
+  - 一次做好一件事
+  - 处理文本行，不要处理二进制数据
+  - 使用正则表达式
+  - 默认使用标准输入、输出
+  - 避免喋喋不休
+  - 输出格式必须与可接受的输出格式一致
+  - 让工具去做困难的部分
+  - 构建特定工具前，先想想
+- 获取密码
+  - printf "Enter new password:"
+  - stty -echo
+  - read pass < /dev/tty
+  - printf "Enter again:"
+  - read pass2 < /dev/tty
+  - stty echo
+- 在程序中执行跟踪：
+  - set -x：打开跟踪功能
+  - set +x：关闭跟踪功能 
+- 为/home/qiuye目录结构建立一份副本在/home/qy下
+  - find /home/qiuye -type -d -print | sed 's;/home/qiuye/;/home/qy/;' | sed 's/^/mkdir /' | sh -x
+- sed 's/Tony/Camus/2'：只替换第二次匹配到的
+- 单词频率过滤器
+  - tr -cs A-Za-z\' '\n' | tr A-Z a-z | sort | uniq -c | sort -k1,1nr -k2 | head 25
+- tcpdump tcp port 80 -s 0 -w net_stat.pcap
 
 操作系统
 --------
@@ -597,3 +692,22 @@ Linux
         2.  撤销进程：可以直接撤消死锁进程或撤消代价最小的进程，直至有足够的资源可用，死锁状态.消除为止；所谓代价是指优先级、运行代价、进程的重要性和价值等。
 
 -   如何制造死锁
+
+### 变量存储区域
+
++ 栈：
+  + 由编译器在需要的时候分配，在不需要的时候自动清楚的变量的存储区。
+  + 地址是不固定的。
+  + 存储的变量通常是局部变量、函数参数等。
++ 堆：
+  + 由new分配的内存块，它们的释放编译器不去管，而是由应用程序去控制，一般一个new就要对应一个delete。
+  + 如果程序员没有释放掉，那么在程序结束后，操作系统会自动回收。
++ 自由存储区：
+  + 由malloc等分配的内存块，和堆是十分类似，不过它是用free来结束自己的生命的。
++ 全局存储区（静态存储区）：
+  + 全局变量和静态变量的存储是放在一块的。
+  + 初始化的全局变量和静态变量在一块区域， 未初始化的全局变量和未初始化的静态变量在相邻的另一块区域。
+  + 程序结束后由系统释放。
++ 常量存储区：
+  + 这是一块比较特殊的存储区，位置是固定的。
+  + 这里面存放的是常量，不允许修改。
